@@ -270,7 +270,7 @@ if 'last_data_state' not in st.session_state:
 
 calc = st.session_state.calculator
 
-st.title("صبر جميل والله المستعان... ")
+st.title("Advisor Assistant - CE Diploma")
 
 # --- Top Controls (No Sidebar) ---
 st.markdown("### Load Transcript")
