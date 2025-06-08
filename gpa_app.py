@@ -223,31 +223,50 @@ class GPACalculator:
 
         return "🟡 Can Register"
 
-    def update_from_editor_data(self, edited_df):
-        """Update the internal DataFrame with data from the editor"""
-        attempt_cols = ['Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5']
+    def apply_accumulated_changes(self, accumulated_changes):
+        """Apply accumulated changes to the main DataFrame"""
+        if accumulated_changes:
+            changes_made = False
+            for row_idx, row_changes in accumulated_changes.items():
+                for col, value in row_changes.items():
+                    if col in ['Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5']:
+                        current_value = str(self.df_subjects.iloc[int(row_idx)][col]).strip()
+                        new_value = str(value).strip().upper() if pd.notna(value) else ""
+                        if current_value != new_value:
+                            self.df_subjects.iloc[int(row_idx), self.df_subjects.columns.get_loc(col)] = new_value
+                            changes_made = True
 
-        changes_made = False
-        for i, row in edited_df.iterrows():
-            for col in attempt_cols:
-                new_val = str(row[col]).strip().upper() if pd.notna(row[col]) else ""
-                old_val = str(self.df_subjects.iloc[i][col]).strip() if pd.notna(
-                    self.df_subjects.iloc[i][col]) else ""
-                if new_val != old_val:
-                    self.df_subjects.iloc[i, self.df_subjects.columns.get_loc(col)] = new_val
-                    changes_made = True
+            if changes_made:
+                self.calculate_gpa()
+                self.update_all_registration_status()
+                return True
+        return False
 
-        if changes_made:
-            self.calculate_gpa()
+    def get_current_display_data(self):
+        """Get the current data for display in the editor, including any accumulated changes"""
+        editor_df = self.df_subjects[[
+            'COURSE_CODE', 'COURSE_NAME', 'CRD_HRS',
+            'Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5',
+            'REGISTRATION_STATUS'
+        ]].copy()
 
-        return changes_made
+        # Apply accumulated changes to the display DataFrame
+        if 'accumulated_changes' in st.session_state and st.session_state.accumulated_changes:
+            for row_idx, row_changes in st.session_state.accumulated_changes.items():
+                for col, value in row_changes.items():
+                    if col in ['Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5']:
+                        editor_df.iloc[int(row_idx), editor_df.columns.get_loc(col)] = value
+
+        return editor_df
 
 
 # Initialize session state
 if 'calculator' not in st.session_state:
     st.session_state.calculator = GPACalculator()
-if 'last_editor_state' not in st.session_state:
-    st.session_state.last_editor_state = None
+if 'accumulated_changes' not in st.session_state:
+    st.session_state.accumulated_changes = {}
+if 'last_data_state' not in st.session_state:
+    st.session_state.last_data_state = None
 
 calc = st.session_state.calculator
 
@@ -258,13 +277,25 @@ st.markdown("### Load Transcript")
 top_col1, top_col2 = st.columns([2, 8])
 
 with top_col1:
+    # Use a session state variable to track the name of the processed file
+    if 'processed_file_name' not in st.session_state:
+        st.session_state.processed_file_name = None
+
     uploaded_file = st.file_uploader("Browse Transcript CSV", type="csv", label_visibility="collapsed")
-    if uploaded_file is not None:
+
+    # Only load data if a NEW file has been uploaded
+    if uploaded_file is not None and uploaded_file.name != st.session_state.processed_file_name:
         if calc.load_csv_data(uploaded_file):
             st.success("Transcript loaded successfully!")
-            st.session_state.last_editor_state = None
+            # Reset accumulated changes and mark the new file as processed
+            st.session_state.accumulated_changes = {}
+            st.session_state.last_data_state = None
+            st.session_state.processed_file_name = uploaded_file.name
+            st.rerun() # Rerun to ensure a clean slate with the new data
         else:
             st.error("Failed to process CSV.")
+            # Ensure we don't think a failed file was processed
+            st.session_state.processed_file_name = None
 
 # --- Tabs ---
 tab1, tab2 = st.tabs(["Grade Editor 📝", "Results Summary 📊"])
@@ -274,6 +305,29 @@ with tab1:
 
     if not calc.df_subjects.empty:
         st.caption("Edit grades in the 'Attempt' columns. Changes are applied automatically.")
+
+        # Process editor changes
+        if 'grade_editor' in st.session_state:
+            current_editor_data = st.session_state.grade_editor
+
+            if current_editor_data is not None and current_editor_data.get('edited_rows'):
+                display_df = calc.get_current_display_data()
+
+                for row_idx, row_changes in current_editor_data['edited_rows'].items():
+                    if row_idx not in st.session_state.accumulated_changes:
+                        st.session_state.accumulated_changes[row_idx] = {}
+                    for col, val in row_changes.items():
+                        prev_val = display_df.iloc[int(row_idx)][col]
+                        if val != prev_val:
+                            st.session_state.accumulated_changes[row_idx][col] = str(val).upper() if pd.notna(
+                                val) else ""
+
+                calc.apply_accumulated_changes(st.session_state.accumulated_changes)
+
+        # Apply accumulated changes to the calculator
+        if st.session_state.accumulated_changes:
+            calc.apply_accumulated_changes(st.session_state.accumulated_changes)
+
         # Status bar logic
         status_message = "Status: upload a CSV file from ATS"
         status_color = "gray"
@@ -309,6 +363,7 @@ with tab1:
             """,
             unsafe_allow_html=True
         )
+
         st.markdown("""
             <style>
             .element-container:has(span:contains("R")) span {
@@ -318,30 +373,18 @@ with tab1:
             </style>
         """, unsafe_allow_html=True)
 
-        # Create a copy for editing that includes the current data
-        calc.update_all_registration_status()
-        editor_df = calc.df_subjects[[
-            'COURSE_CODE', 'COURSE_NAME', 'CRD_HRS',
-            'Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5',
-            'REGISTRATION_STATUS'
-        ]].copy()
+        # Get current display data (includes accumulated changes)
+        display_df = calc.get_current_display_data()
 
-        # Use st.data_editor with better state management
+        # Use st.data_editor with the current display data
         edited_df = st.data_editor(
-            editor_df,
+            display_df,
             key="grade_editor",
             disabled=['COURSE_CODE', 'COURSE_NAME', 'CRD_HRS', 'REGISTRATION_STATUS'],
             use_container_width=True,
             hide_index=True,
-            height=len(editor_df) * 35 + 60,  # Dynamically scale based on number of rows
-            on_change=lambda: st.session_state.update({'editor_changed': True})
+            height=len(display_df) * 35 + 60,  # Dynamically scale based on number of rows
         )
-
-        # Check if the editor data has changed and update accordingly
-        if 'editor_changed' in st.session_state and st.session_state.editor_changed:
-            if calc.update_from_editor_data(edited_df):
-                st.success("✅ Grades updated and GPA recalculated!")
-            st.session_state.editor_changed = False
 
         # Display current metrics
         col1, col2, col3 = st.columns([1, 1, 2])
@@ -349,14 +392,11 @@ with tab1:
             st.metric("Current GPA", f"{calc.final_gpa:.4f}")
         with col2:
             st.metric("Total Courses", len(calc.df_subjects))
-        with col3:
-            # Manual refresh button as backup
-            if st.button("🔄 Force Refresh", key="force_refresh"):
-                if calc.update_from_editor_data(edited_df):
-                    st.success("✅ Forced refresh completed!")
-                else:
-                    st.info("No changes detected.")
-                st.rerun()
+
+        # Show accumulated changes count
+        if st.session_state.accumulated_changes:
+            total_changes = sum(len(changes) for changes in st.session_state.accumulated_changes.values())
+            st.info(f"📝 {total_changes} changes accumulated and applied")
 
         # Status summary
         st.subheader("Registration Status Summary")
@@ -433,4 +473,5 @@ with tab2:
 if calc.student_name:
     st.markdown("---")
     st.caption(
-        f"Last updated: GPA={calc.final_gpa:.4f}, Total Effort={calc.total_subject_effort:.2f}, Total Load={calc.total_adjusted_load:.2f}")
+        f"Last updated: GPA={calc.final_gpa:.4f}, Total Effort={calc.total_subject_effort:.2f}, Total Load={calc.total_adjusted_load:.2f}"
+    )
