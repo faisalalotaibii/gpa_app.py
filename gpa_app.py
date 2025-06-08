@@ -1,6 +1,12 @@
 import streamlit as st
 import pandas as pd
 
+st.set_page_config(
+    page_title="GPA Calculator",
+    layout="wide",  # 🟢 This is the key setting
+    initial_sidebar_state="collapsed"
+)
+
 
 # --- Class Definition ---
 class GPACalculator:
@@ -117,7 +123,8 @@ class GPACalculator:
 
     def calculate_gpa(self):
         for i in range(1, 6):
-            self.df_subjects[f"Attempt{i}_GPA"] = self.df_subjects[f"Attempt{i}"].map(self.grade_to_gpa).fillna(0)
+            self.df_subjects[f"Attempt{i}_GPA"] = self.df_subjects[f"Attempt{i}"].str.upper().map(
+                self.grade_to_gpa).fillna(0)
 
         self.df_subjects["ADJUSTED_LOAD"] = self.df_subjects.apply(self.compute_adjusted_load, axis=1)
         self.df_subjects["SUBJECT_EFFORT"] = self.df_subjects.apply(self.compute_subject_effort, axis=1)
@@ -192,7 +199,7 @@ class GPACalculator:
         changes_made = False
         for i, row in edited_df.iterrows():
             for col in attempt_cols:
-                new_val = str(row[col]).strip() if pd.notna(row[col]) else ""
+                new_val = str(row[col]).strip().upper() if pd.notna(row[col]) else ""
                 old_val = str(self.df_subjects.iloc[i][col]).strip() if pd.notna(
                     self.df_subjects.iloc[i][col]) else ""
                 if new_val != old_val:
@@ -213,28 +220,20 @@ if 'last_editor_state' not in st.session_state:
 
 calc = st.session_state.calculator
 
-st.title("Interactive GPA Calculator 🎓")
+st.title("صبر جميل والله المستعان... ")
 
-with st.sidebar:
-    st.header("Controls")
-    uploaded_file = st.file_uploader("Load Transcript CSV", type="csv")
+# --- Top Controls (No Sidebar) ---
+st.markdown("### Load Transcript")
+top_col1, top_col2 = st.columns([2, 8])
+
+with top_col1:
+    uploaded_file = st.file_uploader("Browse Transcript CSV", type="csv", label_visibility="collapsed")
     if uploaded_file is not None:
         if calc.load_csv_data(uploaded_file):
             st.success("Transcript loaded successfully!")
-            # Reset editor state when new data is loaded
             st.session_state.last_editor_state = None
         else:
             st.error("Failed to process CSV.")
-
-    if st.button("🔄 Refresh Calculations"):
-        calc.calculate_gpa()
-        st.rerun()
-
-if calc.student_name:
-    st.subheader(f"Student: {calc.student_name} (ID: {calc.student_id})")
-    st.metric(label="Overall GPA", value=f"{calc.final_gpa:.4f}")
-else:
-    st.info("Load a transcript CSV to get started.")
 
 # --- Tabs ---
 tab1, tab2 = st.tabs(["Grade Editor 📝", "Results Summary 📊"])
@@ -246,9 +245,12 @@ with tab1:
         st.caption("Edit grades in the 'Attempt' columns. Changes are applied automatically.")
 
         # Create a copy for editing that includes the current data
-        editor_df = calc.df_subjects[['COURSE_CODE', 'COURSE_NAME', 'CRD_HRS',
-                                      'Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5',
-                                      'REGISTRATION_STATUS']].copy()
+        calc.update_all_registration_status()
+        editor_df = calc.df_subjects[[
+            'COURSE_CODE', 'COURSE_NAME', 'CRD_HRS',
+            'Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5',
+            'REGISTRATION_STATUS'
+        ]].copy()
 
         # Use st.data_editor with better state management
         edited_df = st.data_editor(
@@ -257,6 +259,7 @@ with tab1:
             disabled=['COURSE_CODE', 'COURSE_NAME', 'CRD_HRS', 'REGISTRATION_STATUS'],
             use_container_width=True,
             hide_index=True,
+            height=len(editor_df) * 35 + 60,  # Dynamically scale based on number of rows
             on_change=lambda: st.session_state.update({'editor_changed': True})
         )
 
