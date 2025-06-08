@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import base64
+
 
 st.set_page_config(
     page_title="GPA Calculator",
@@ -7,6 +9,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+with open("A_pixel_art_animated_GIF_features_a_camel_gallopin.png", "rb") as f:
+    camel_gif = f.read()
+
+encoded = base64.b64encode(camel_gif).decode()
+
+st.markdown(
+    f"""
+    <div style="width: 100%; overflow: hidden; height: 120px;">
+        <img src="data:image/gif;base64,{encoded}" style="width: 100%; height: 100%; object-fit: cover;">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- Class Definition ---
 class GPACalculator:
