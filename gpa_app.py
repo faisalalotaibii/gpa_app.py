@@ -93,8 +93,10 @@ class GPACalculator:
             uploaded_file.seek(0)
             df_transcript = pd.read_csv(uploaded_file, skiprows=5)
             df_transcript.columns = df_transcript.columns.str.strip()
-            df_transcript.iloc[:, 8] = df_transcript.iloc[:, 8].fillna("00").replace(r"^\s*$", "00", regex=True)
-
+            # Replace empty cells with 'R' for retake and mark it specially
+            df_transcript.iloc[:, 8] = df_transcript.iloc[:, 8].apply(
+                lambda x: "R" if pd.isna(x) or str(x).strip() == "" else str(x).strip()
+            )
             df_subset = df_transcript.iloc[:, [3, 8]]
             df_subset.columns = ["COURSE_CODE", "COMMENT"]
             df_subset = df_subset.dropna(subset=["COURSE_CODE"])
@@ -189,7 +191,17 @@ class GPACalculator:
             self.df_subjects.at[idx, "REGISTRATION_STATUS"] = self.get_registration_status(row, subject_dict)
 
     def get_registration_status(self, row, subject_dict):
-        recent_gpa = self.get_most_recent_gpa(row)
+        recent_grade = None
+        for i in reversed(range(1, 6)):
+            grade = str(row.get(f"Attempt{i}", "")).strip().upper()
+            if grade:
+                recent_grade = grade
+                break
+
+        if recent_grade == "R":
+            return "🟠 Currently Registered"
+
+        recent_gpa = self.grade_to_gpa.get(recent_grade, None)
         if recent_gpa is not None and recent_gpa >= 1.00:
             return "✅ Passed"
 
@@ -262,6 +274,49 @@ with tab1:
 
     if not calc.df_subjects.empty:
         st.caption("Edit grades in the 'Attempt' columns. Changes are applied automatically.")
+        # Status bar logic
+        status_message = "Status: upload a CSV file from ATS"
+        status_color = "gray"
+
+        if not calc.df_subjects.empty:
+            # Check if any recent grade is "R"
+            has_r = False
+            for _, row in calc.df_subjects.iterrows():
+                for i in reversed(range(1, 6)):
+                    grade = str(row.get(f"Attempt{i}", "")).strip().upper()
+                    if grade == "R":
+                        has_r = True
+                        break
+                if has_r:
+                    break
+
+            if has_r:
+                status_message = (
+                    "Status: The student is currently registered in subjects. "
+                    "Either put the anticipated grade or remove them. The GPA currently is incorrect."
+                )
+                status_color = "orange"
+            else:
+                status_message = "Status: All is working .. I hope."
+                status_color = "green"
+
+        # Show status bar with colored background
+        st.markdown(
+            f"""
+            <div style="padding:10px; background-color:{status_color}; color:white; border-radius:5px;">
+                {status_message}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.markdown("""
+            <style>
+            .element-container:has(span:contains("R")) span {
+                color: red !important;
+                font-weight: bold;
+            }
+            </style>
+        """, unsafe_allow_html=True)
 
         # Create a copy for editing that includes the current data
         calc.update_all_registration_status()
