@@ -108,12 +108,31 @@ class GPACalculator:
             for i in range(1, 6):
                 self.df_subjects[f"Attempt{i}"] = ""
 
+            # Track unmatched courses to assign them to "ELE"
+            unmatched_attempts = []
+
             for idx, row in self.df_subjects.iterrows():
                 code = row["COURSE_CODE"]
                 attempts = course_comments.get(code, [])
                 for i in range(min(5, len(attempts))):
                     grade = attempts[i] if attempts[i] != "00" else ""
                     self.df_subjects.at[idx, f"Attempt{i + 1}"] = grade
+
+                # Remove matched courses from course_comments
+                if code in course_comments:
+                    del course_comments[code]
+
+            # Handle unmatched courses (assign to ELE)
+            ele_idx = self.df_subjects[self.df_subjects["COURSE_CODE"] == "ELE"].index
+            if not ele_idx.empty:
+                ele_idx = ele_idx[0]
+                unmatched_grades = sum(course_comments.values(), [])  # Flatten the list of unmatched grades
+                filled = 0
+                for i in range(1, 6):
+                    if self.df_subjects.at[ele_idx, f"Attempt{i}"] == "" and filled < len(unmatched_grades):
+                        grade = unmatched_grades[filled] if unmatched_grades[filled] != "00" else ""
+                        self.df_subjects.at[ele_idx, f"Attempt{i}"] = grade
+                        filled += 1
 
             self.calculate_gpa()
             return True
