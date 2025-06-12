@@ -425,66 +425,6 @@ with tab1:
     else:
         st.write("Load data to see and edit grades.")
 
-with tab2:
-    st.header("Results Summary")
-    if calc.student_name:
-        # Student info
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(f"**Student:** {calc.student_name}")
-            st.write(f"**Student ID:** {calc.student_id}")
-        with col2:
-            st.metric("Overall GPA", f"{calc.final_gpa:.4f}")
-            st.write(f"**Total Subject Effort:** {calc.total_subject_effort:.2f}")
-            st.write(f"**Total Adjusted Load:** {calc.total_adjusted_load:.2f}")
-
-        st.markdown("---")
-
-        # Registration status summary
-        st.subheader("Registration Status Summary")
-        status_counts = calc.df_subjects["REGISTRATION_STATUS"].value_counts().to_dict()
-        cols = st.columns(4)
-        col_idx = 0
-        for status, count in status_counts.items():
-            with cols[col_idx % 4]:
-                st.metric(status, count)
-            col_idx += 1
-
-        st.markdown("---")
-
-        # Full results table - this will now show updated data
-        st.subheader("Detailed Course Results")
-        summary_df = calc.df_subjects[[
-            "COURSE_CODE", "COURSE_NAME", "CRD_HRS",
-            "Attempt1", "Attempt2", "Attempt3", "Attempt4", "Attempt5",
-            "ADJUSTED_LOAD", "SUBJECT_EFFORT", "REGISTRATION_STATUS"
-        ]].copy()
-
-        st.dataframe(summary_df, use_container_width=True, height=600)
-
-        st.markdown("---")
-        st.subheader("GPA Calculation Explanation")
-        with st.expander("Click to see calculation details"):
-            st.markdown("""
-            **GPA = Total Subject Effort ÷ Total Adjusted Load**
-
-            **Adjusted Load Calculation:**
-            - If 0 or 1 attempt with a grade: Credit Hours
-            - If >1 attempt with grades: Credit Hours × (1 + (Number of Graded Attempts - 2))
-
-            **Subject Effort Calculation:**
-            - If only 1 attempt: Credit Hours × Attempt1 GPA
-            - If >1 attempt: Sum of (Credit Hours × Attempt GPA) for attempts *after* the first one that has a grade
-
-            **Registration Status:**
-            - ✅ Passed: Most recent grade GPA ≥ 1.00
-            - ❌ Cannot Register: Prerequisites not met
-            - ❌ Failed (Can Retake): Has attempts but recent GPA < 1.00
-            - 🟡 Can Register: No attempts, prerequisites met
-            """)
-    else:
-        st.write("Load data to see the results summary.")
-
 # Add a footer with current calculation details
 if calc.student_name:
     st.markdown("---")
