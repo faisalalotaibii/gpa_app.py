@@ -3,26 +3,6 @@ import pandas as pd
 import base64
 
 
-st.set_page_config(
-    page_title="GPA Calculator",
-    layout="wide",  # 🟢 This is the key setting
-    initial_sidebar_state="collapsed"
-)
-
-with open("A_pixel_art_animated_GIF_features_a_camel_gallopin.png", "rb") as f:
-    camel_gif = f.read()
-
-encoded = base64.b64encode(camel_gif).decode()
-
-st.markdown(
-    f"""
-    <div style="width: 100%; overflow: hidden; height: 120px;">
-        <img src="data:image/gif;base64,{encoded}" style="width: 100%; height: 100%; object-fit: cover;">
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
 # --- Class Definition ---
 class GPACalculator:
     def __init__(self):
@@ -306,7 +286,7 @@ with top_col1:
             st.session_state.accumulated_changes = {}
             st.session_state.last_data_state = None
             st.session_state.processed_file_name = uploaded_file.name
-            st.rerun() # Rerun to ensure a clean slate with the new data
+            st.rerun()  # Rerun to ensure a clean slate with the new data
         else:
             st.error("Failed to process CSV.")
             # Ensure we don't think a failed file was processed
@@ -317,7 +297,14 @@ tab1, tab2 = st.tabs(["Grade Editor 📝", "Results Summary 📊"])
 
 with tab1:
     st.header("Grade Editor")
+    if calc.student_name:
+        # Student info
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Student:** {calc.student_name}")
+            st.write(f"**Student ID:** {calc.student_id}")
 
+        st.markdown("---")
     if not calc.df_subjects.empty:
         st.caption("Edit grades in the 'Attempt' columns. Changes are applied automatically.")
 
@@ -392,6 +379,20 @@ with tab1:
         display_df = calc.get_current_display_data()
 
         # Use st.data_editor with the current display data
+        st.markdown("""
+            <style>
+            /* Make data editor table have vertical and horizontal borders */
+            .stDataFrame, .stDataEditor table {
+            border-collapse: collapse !important;
+            }
+            .stDataEditor table td, 
+            .stDataEditor table th {
+            border: 1px solid #555 !important;
+            padding: 8px !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
         edited_df = st.data_editor(
             display_df,
             key="grade_editor",
