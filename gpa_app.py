@@ -1,433 +1,320 @@
-import streamlit as st
+# app.py
+import io
+import re
+from datetime import datetime, time
+from typing import List, Dict, Tuple
+
 import pandas as pd
-import base64
+import streamlit as st
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
+# ---------- CONFIG ----------
+st.set_page_config(page_title="Weekly Schedule Builder", layout="wide")
 
-# --- Class Definition ---
-class GPACalculator:
-    def __init__(self):
-        self.subjects_data = [
-            {"COURSE_CODE": "ENGL110", "COURSE_NAME": "Technical Writing for Engineering", "PREREQ_1": "",
-             "PREREQ_2": "", "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "MATH100", "COURSE_NAME": "Calculus I", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "PHYS100", "COURSE_NAME": "Physics I", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CHEM100", "COURSE_NAME": "Chemistry I", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "MECH120", "COURSE_NAME": "Engineering Drawings", "PREREQ_1": "", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 1},
-            {"COURSE_CODE": "ENGI100", "COURSE_NAME": "Introduction to Engineering", "PREREQ_1": "", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 1},
-            {"COURSE_CODE": "CHEM109", "COURSE_NAME": "Chemistry I Lab", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "CHEM100", "CRD_HRS": 1},
-            {"COURSE_CODE": "MATH101", "COURSE_NAME": "Calculus II", "PREREQ_1": "MATH100", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "PHYS101", "COURSE_NAME": "Physics II", "PREREQ_1": "PHYS100", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL100", "COURSE_NAME": "Statics", "PREREQ_1": "MATH100", "PREREQ_2": "PHYS100",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "AIEN120", "COURSE_NAME": "Computer Programming", "PREREQ_1": "MATH100", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "AIEN129", "COURSE_NAME": "Computer Programming Lab", "PREREQ_1": "", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "AIEN120", "CRD_HRS": 1},
-            {"COURSE_CODE": "MECH100", "COURSE_NAME": "Workshop I", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "", "CRD_HRS": 1},
-            {"COURSE_CODE": "PHYS109", "COURSE_NAME": "Physics Lab", "PREREQ_1": "PHYS100", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "PHYS101", "CRD_HRS": 1},
-            {"COURSE_CODE": "CIVL200", "COURSE_NAME": "Surveying", "PREREQ_1": "MECH120", "PREREQ_2": "MATH101",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL210", "COURSE_NAME": "Strength of Materials", "PREREQ_1": "CIVL100", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL211", "COURSE_NAME": "Civil Engineering Materials", "PREREQ_1": "CHEM100",
-             "PREREQ_2": "CIVL100", "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL250", "COURSE_NAME": "Hydraulics", "PREREQ_1": "MATH101", "PREREQ_2": "CIVL100",
-             "PREREQ_3": "PHYS101", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL209", "COURSE_NAME": "Surveying Lab", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "CIVL200", "CRD_HRS": 1},
-            {"COURSE_CODE": "CIVL259", "COURSE_NAME": "Hydraulics Lab", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "CIVL250", "CRD_HRS": 1},
-            {"COURSE_CODE": "CIVL212", "COURSE_NAME": "Concrete Structures", "PREREQ_1": "CIVL210", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL230", "COURSE_NAME": "Highway and Pavement Engineering", "PREREQ_1": "CIVL200",
-             "PREREQ_2": "CIVL211", "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL240", "COURSE_NAME": "Geotechnical Engineering", "PREREQ_1": "CIVL210",
-             "PREREQ_2": "CIVL250", "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "CIVL249", "COURSE_NAME": "Geotechnical Engineering Lab", "PREREQ_1": "",
-             "PREREQ_2": "CIVL211", "PREREQ_3": "", "CO_REQ": "CIVL240", "CRD_HRS": 1},
-            {"COURSE_CODE": "CIVL290", "COURSE_NAME": "Project 1 (PBL)", "PREREQ_1": "CIVL211", "PREREQ_2": "",
-             "PREREQ_3": "", "CO_REQ": "", "CRD_HRS": 3},
-            {"COURSE_CODE": "ELE", "COURSE_NAME": "University Elective", "PREREQ_1": "", "PREREQ_2": "", "PREREQ_3": "",
-             "CO_REQ": "", "CRD_HRS": 3}
-        ]
+DAY_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+DAY_TO_ROW = {d: i for i, d in enumerate(DAY_ORDER)}
 
-        self.grade_to_gpa = {
-            "A": 4.00, "A-": 3.67, "B+": 3.33, "B": 3.00,
-            "B-": 2.67, "C+": 2.33, "C": 2.00, "C-": 1.67,
-            "D+": 1.33, "D": 1.00, "F": 0.00, "I": 0.00, "": 0.00
-        }
+# Regex to parse entries like:
+# "Sun 08:00-09:15", "Sun/Tue 8:00 AM - 9:15 AM", "Mon/Wed/Thu 13:30-15:00"
+TIME_RE = re.compile(
+    r"^\s*(?P<days>(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:/(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat))*)\s+"
+    r"(?P<start>\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*-\s*(?P<end>\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*$",
+    re.IGNORECASE
+)
 
-        self.df_subjects = pd.DataFrame(self.subjects_data)
-        self.student_name = ""
-        self.student_id = ""
-        self.final_gpa = 0.0
-        self.total_subject_effort = 0
-        self.total_adjusted_load = 0
-
-        for i in range(1, 6):
-            self.df_subjects[f"Attempt{i}"] = ""
-
-        self.df_subjects["REGISTRATION_STATUS"] = "Unknown"
-
-    def load_csv_data(self, uploaded_file):
+def to_time_obj(tstr: str) -> time:
+    """Robust time parser for 'HH:MM' or 'HH:MM AM/PM'."""
+    tstr = tstr.strip().upper()
+    fmts = ["%H:%M", "%I:%M %p"]
+    for f in fmts:
         try:
-            df_info = pd.read_csv(uploaded_file, nrows=2, header=None)
-            self.student_name = df_info.iat[1, 0]
-            self.student_id = df_info.iat[1, 2]
+            return datetime.strptime(tstr, f).time()
+        except ValueError:
+            continue
+    # last resort: try adding AM
+    try:
+        return datetime.strptime(tstr + " AM", "%I:%M %p").time()
+    except Exception:
+        pass
+    raise ValueError(f"Unrecognized time format: {tstr}")
 
-            uploaded_file.seek(0)
-            df_transcript = pd.read_csv(uploaded_file, skiprows=5)
-            df_transcript.columns = df_transcript.columns.str.strip()
-            # Replace empty cells with 'R' for retake and mark it specially
-            df_transcript.iloc[:, 8] = df_transcript.iloc[:, 8].apply(
-                lambda x: "R" if pd.isna(x) or str(x).strip() == "" else str(x).strip()
-            )
-            df_subset = df_transcript.iloc[:, [3, 8]]
-            df_subset.columns = ["COURSE_CODE", "COMMENT"]
-            df_subset = df_subset.dropna(subset=["COURSE_CODE"])
+def parse_timeslots(cell: str) -> List[Dict]:
+    """
+    Parse Column H text into a list of {day, start, end} dicts.
+    Accepts multiple entries separated by ';' or newlines.
+    Example cells:
+      "Sun/Tue 08:00-09:15"
+      "Mon 13:00-14:15; Wed 13:00-14:15"
+    """
+    if pd.isna(cell) or str(cell).strip() == "":
+        return []
 
-            course_comments = {}
-            for _, row in df_subset.iterrows():
-                code = row["COURSE_CODE"].strip()
-                comment = row["COMMENT"].strip()
-                course_comments.setdefault(code, []).append(comment)
+    chunks = re.split(r"[;\n]+", str(cell))
+    slots = []
+    for chunk in chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        m = TIME_RE.match(chunk)
+        if not m:
+            # try forgiving: remove extra spaces around dash
+            chunk2 = re.sub(r"\s*-\s*", "-", chunk)
+            m = TIME_RE.match(chunk2)
+        if not m:
+            # If still not matched, skip this piece but continue
+            # (we'll show a warning later)
+            continue
 
-            for i in range(1, 6):
-                self.df_subjects[f"Attempt{i}"] = ""
+        days_str = m.group("days")
+        start_str = m.group("start")
+        end_str = m.group("end")
+        try:
+            start_t = to_time_obj(start_str)
+            end_t   = to_time_obj(end_str)
+        except Exception:
+            continue
 
-            # Track unmatched courses to assign them to "ELE"
-            unmatched_attempts = []
+        for d in days_str.split("/"):
+            d = d.title().strip()
+            if d in DAY_TO_ROW:
+                slots.append({"day": d, "start": start_t, "end": end_t})
+    return slots
 
-            for idx, row in self.df_subjects.iterrows():
-                code = row["COURSE_CODE"]
-                attempts = course_comments.get(code, [])
-                for i in range(min(5, len(attempts))):
-                    grade = attempts[i] if attempts[i] != "00" else ""
-                    self.df_subjects.at[idx, f"Attempt{i + 1}"] = grade
+@st.cache_data(show_spinner=False)
+def load_excel(file_bytes: bytes) -> pd.DataFrame:
+    """
+    Load either legacy .xls (requires xlrd==1.2.0) or .xlsx (openpyxl) into a DataFrame.
+    """
+    bio = io.BytesIO(file_bytes)
+    try:
+        # Try auto engine
+        df = pd.read_excel(bio)
+        return df
+    except Exception:
+        # Retry with xlrd (for old .xls)
+        bio.seek(0)
+        df = pd.read_excel(bio, engine="xlrd")
+        return df
 
-                # Remove matched courses from course_comments
-                if code in course_comments:
-                    del course_comments[code]
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Make sure we have the columns we need with friendly names.
+    A: code, B: name, H: datetime text, J: status, K: teacher, L: students
+    """
+    # If columns are unnamed, use letter-based fallback by position
+    cols = list(df.columns)
 
-            # Handle unmatched courses (assign to ELE)
-            ele_idx = self.df_subjects[self.df_subjects["COURSE_CODE"] == "ELE"].index
-            if not ele_idx.empty:
-                ele_idx = ele_idx[0]
-                unmatched_grades = sum(course_comments.values(), [])  # Flatten the list of unmatched grades
-                filled = 0
-                for i in range(1, 6):
-                    if self.df_subjects.at[ele_idx, f"Attempt{i}"] == "" and filled < len(unmatched_grades):
-                        grade = unmatched_grades[filled] if unmatched_grades[filled] != "00" else ""
-                        self.df_subjects.at[ele_idx, f"Attempt{i}"] = grade
-                        filled += 1
+    # Try to map by common names first (case-insensitive)
+    lc = {str(c).strip().lower(): c for c in cols}
 
-            self.calculate_gpa()
-            return True
-        except Exception as e:
-            st.error(f"Failed to load CSV file: {str(e)}")
-            return False
-
-    def calculate_gpa(self):
-        for i in range(1, 6):
-            self.df_subjects[f"Attempt{i}_GPA"] = self.df_subjects[f"Attempt{i}"].str.upper().map(
-                self.grade_to_gpa).fillna(0)
-
-        self.df_subjects["ADJUSTED_LOAD"] = self.df_subjects.apply(self.compute_adjusted_load, axis=1)
-        self.df_subjects["SUBJECT_EFFORT"] = self.df_subjects.apply(self.compute_subject_effort, axis=1)
-
-        self.total_subject_effort = self.df_subjects["SUBJECT_EFFORT"].sum()
-        self.total_adjusted_load = self.df_subjects["ADJUSTED_LOAD"].sum()
-
-        self.final_gpa = self.total_subject_effort / self.total_adjusted_load if self.total_adjusted_load > 0 else 0.0
-        self.update_all_registration_status()
-
-    def compute_adjusted_load(self, row):
-        attempts = [row.get(f"Attempt{i}", "").strip() for i in range(1, 6)]
-        valid_attempts = [a for a in attempts if a]
-        crd = row["CRD_HRS"]
-        if not valid_attempts:
-            return 0
-        return crd * (1 + (len(valid_attempts) - 2)) if len(valid_attempts) > 1 else crd
-
-    def compute_subject_effort(self, row):
-        crd = row["CRD_HRS"]
-        gpas = [row.get(f"Attempt{i}_GPA", 0) for i in range(1, 6)]
-        grades = [row.get(f"Attempt{i}", "").strip() for i in range(1, 6)]
-        valid_attempts = [g for g in grades if g]
-        total_effort = 0
-        if len(valid_attempts) == 1:
-            total_effort = crd * gpas[0]
-        elif len(valid_attempts) > 1:
-            for gpa_val in gpas[1:]:
-                if gpa_val > 0:
-                    total_effort += crd * gpa_val
-        return total_effort
-
-    def get_most_recent_gpa(self, row):
-        for i in reversed(range(1, 6)):
-            grade = str(row.get(f"Attempt{i}", "")).strip()
-            if grade and grade != "" and grade in self.grade_to_gpa:
-                return self.grade_to_gpa[grade]
+    def pick(*aliases, fallback_index=None):
+        for a in aliases:
+            if a in lc:
+                return lc[a]
+        if fallback_index is not None and fallback_index < len(cols):
+            return cols[fallback_index]
         return None
 
-    def update_all_registration_status(self):
-        subject_dict = {row["COURSE_CODE"]: row for _, row in self.df_subjects.iterrows()}
-        for idx, row in self.df_subjects.iterrows():
-            self.df_subjects.at[idx, "REGISTRATION_STATUS"] = self.get_registration_status(row, subject_dict)
+    col_code    = pick("code", "subject code", "course code", fallback_index=0)
+    col_name    = pick("name", "subject name", "course name", fallback_index=1)
+    col_time    = pick("time", "date and time", "date & time", "datetime", fallback_index=7)
+    col_status  = pick("status", fallback_index=9)
+    col_teacher = pick("teacher", "instructor", fallback_index=10)
+    col_students= pick("students", "enrolled", "no. of students", "number of students", fallback_index=11)
 
-    def get_registration_status(self, row, subject_dict):
-        recent_grade = None
-        for i in reversed(range(1, 6)):
-            grade = str(row.get(f"Attempt{i}", "")).strip().upper()
-            if grade:
-                recent_grade = grade
-                break
+    need = [col_code, col_name, col_time, col_status, col_teacher, col_students]
+    if any(c is None for c in need):
+        st.error("Could not detect expected columns. Please make sure your sheet matches the described format.")
+        st.stop()
 
-        if recent_grade == "R":
-            return "🟠 Currently Registered"
+    out = df.rename(columns={
+        col_code: "Code",
+        col_name: "Name",
+        col_time: "Time",
+        col_status: "Status",
+        col_teacher: "Teacher",
+        col_students: "Students",
+    }).copy()
 
-        recent_gpa = self.grade_to_gpa.get(recent_grade, None)
-        if recent_gpa is not None and recent_gpa >= 1.00:
-            return "✅ Passed"
+    # Keep only the columns we need (but don’t break if extras exist)
+    return out[["Code", "Name", "Teacher", "Students", "Status", "Time"]]
 
-        has_attempts = any(row.get(f"Attempt{i}", "").strip() for i in range(1, 6))
-        prereqs = [p.strip() for p in [row.get("PREREQ_1", ""), row.get("PREREQ_2", ""), row.get("PREREQ_3", "")] if
-                   p.strip()]
+def timetable_plot(rows: List[Dict], time_min: time = time(8, 0), time_max: time = time(21, 0)):
+    """
+    Draw a weekly grid and place colored blocks for each chosen subject meeting.
+    rows: list of dicts with keys:
+      'Code', 'Name', 'Teacher', 'Students', 'Status', 'TimeSlots' (list[{day,start,end}]), 'Color'
+    """
+    fig, ax = plt.subplots(figsize=(12, 7))
 
-        if prereqs:
-            for prereq_code in prereqs:
-                prereq_row = subject_dict.get(prereq_code)
-                if prereq_row is None:
-                    continue
-                prereq_gpa = self.get_most_recent_gpa(prereq_row)
-                if prereq_gpa is None or prereq_gpa < 1.00:
-                    return f"❌ Cannot Register (Prereq: {prereq_code})"
+    # Axes: x=time, y=days
+    # Convert time to hours since midnight for simple numeric axis
+    def t2h(t: time) -> float:
+        return t.hour + t.minute / 60.0
 
-        if has_attempts:
-            return "❌ Failed (Can Retake)"
+    xmin = t2h(time_min)
+    xmax = t2h(time_max)
 
-        return "🟡 Can Register"
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(-0.5, len(DAY_ORDER) - 0.5)
+    ax.set_yticks(range(len(DAY_ORDER)))
+    ax.set_yticklabels(DAY_ORDER)
 
-    def apply_accumulated_changes(self, accumulated_changes):
-        """Apply accumulated changes to the main DataFrame"""
-        if accumulated_changes:
-            changes_made = False
-            for row_idx, row_changes in accumulated_changes.items():
-                for col, value in row_changes.items():
-                    if col in ['Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5']:
-                        current_value = str(self.df_subjects.iloc[int(row_idx)][col]).strip()
-                        new_value = str(value).strip().upper() if pd.notna(value) else ""
-                        if current_value != new_value:
-                            self.df_subjects.iloc[int(row_idx), self.df_subjects.columns.get_loc(col)] = new_value
-                            changes_made = True
+    # Light grid for hours
+    for h in range(int(xmin), int(xmax) + 1):
+        ax.axvline(h, linewidth=0.5, alpha=0.3)
 
-            if changes_made:
-                self.calculate_gpa()
-                self.update_all_registration_status()
-                return True
-        return False
+    # Horizontal lines for each day row
+    for y in range(len(DAY_ORDER)):
+        ax.axhline(y + 0.5, linewidth=0.5, alpha=0.3)
 
-    def get_current_display_data(self):
-        """Get the current data for display in the editor, including any accumulated changes"""
-        editor_df = self.df_subjects[[
-            'COURSE_CODE', 'COURSE_NAME', 'CRD_HRS',
-            'Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5',
-            'REGISTRATION_STATUS'
-        ]].copy()
+    # Plot blocks
+    for r in rows:
+        for slot in r["TimeSlots"]:
+            y = DAY_TO_ROW[slot["day"]]
+            x0 = t2h(slot["start"])
+            x1 = t2h(slot["end"])
+            width = max(0.2, x1 - x0)
 
-        # Apply accumulated changes to the display DataFrame
-        if 'accumulated_changes' in st.session_state and st.session_state.accumulated_changes:
-            for row_idx, row_changes in st.session_state.accumulated_changes.items():
-                for col, value in row_changes.items():
-                    if col in ['Attempt1', 'Attempt2', 'Attempt3', 'Attempt4', 'Attempt5']:
-                        editor_df.iloc[int(row_idx), editor_df.columns.get_loc(col)] = value
+            rect = Rectangle((x0, y - 0.4), width, 0.8, alpha=0.8)
+            rect.set_facecolor(r["Color"])
+            rect.set_edgecolor("black")
+            ax.add_patch(rect)
 
-        return editor_df
+            # Label inside the block
+            label = f"{r['Code']}\n{slot['start'].strftime('%H:%M')}-{slot['end'].strftime('%H:%M')}"
+            ax.text(x0 + 0.02, y, label, va="center", ha="left", fontsize=9)
 
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Day")
+    ax.set_title("Weekly Schedule")
 
-# Initialize session state
-if 'calculator' not in st.session_state:
-    st.session_state.calculator = GPACalculator()
-if 'accumulated_changes' not in st.session_state:
-    st.session_state.accumulated_changes = {}
-if 'last_data_state' not in st.session_state:
-    st.session_state.last_data_state = None
+    # Clean look
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
-calc = st.session_state.calculator
+    st.pyplot(fig, clear_figure=True)
 
-st.title("Advisor Assistant - CE Diploma")
+def make_palette(n: int) -> List:
+    """
+    Generate n distinct colors using matplotlib's default cycle repeatedly.
+    """
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key().get('color', ['#1f77b4'])
+    if n <= len(colors):
+        return colors[:n]
+    reps = (n + len(colors) - 1) // len(colors)
+    return (colors * reps)[:n]
 
-# --- Top Controls (No Sidebar) ---
-st.markdown("### Load Transcript")
-top_col1, top_col2 = st.columns([2, 8])
+# ---------- UI ----------
+st.title("Student Weekly Schedule")
 
-with top_col1:
-    # Use a session state variable to track the name of the processed file
-    if 'processed_file_name' not in st.session_state:
-        st.session_state.processed_file_name = None
+st.caption("Upload your **Courses Schedule.xls** (or .xlsx), choose subjects, and view your weekly timetable.")
 
-    uploaded_file = st.file_uploader("Browse Transcript CSV", type="csv", label_visibility="collapsed")
+uploaded = st.file_uploader("Upload: Courses Schedule.xls", type=["xls", "xlsx"])
 
-    # Only load data if a NEW file has been uploaded
-    if uploaded_file is not None and uploaded_file.name != st.session_state.processed_file_name:
-        if calc.load_csv_data(uploaded_file):
-            st.success("Transcript loaded successfully!")
-            # Reset accumulated changes and mark the new file as processed
-            st.session_state.accumulated_changes = {}
-            st.session_state.last_data_state = None
-            st.session_state.processed_file_name = uploaded_file.name
-            st.rerun()  # Rerun to ensure a clean slate with the new data
-        else:
-            st.error("Failed to process CSV.")
-            # Ensure we don't think a failed file was processed
-            st.session_state.processed_file_name = None
+if not uploaded:
+    st.info("Please upload your file to continue.")
+    st.stop()
 
-# --- Tabs ---
-tab1, tab2 = st.tabs(["Grade Editor 📝", "Results Summary 📊"])
-
-with tab1:
-    st.header("Grade Editor")
-    if calc.student_name:
-        # Student info
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(f"**Student:** {calc.student_name}")
-            st.write(f"**Student ID:** {calc.student_id}")
-
-        st.markdown("---")
-    if not calc.df_subjects.empty:
-        st.caption("Edit grades in the 'Attempt' columns. Changes are applied automatically.")
-
-        # Process editor changes
-        if 'grade_editor' in st.session_state:
-            current_editor_data = st.session_state.grade_editor
-
-            if current_editor_data is not None and current_editor_data.get('edited_rows'):
-                display_df = calc.get_current_display_data()
-
-                for row_idx, row_changes in current_editor_data['edited_rows'].items():
-                    if row_idx not in st.session_state.accumulated_changes:
-                        st.session_state.accumulated_changes[row_idx] = {}
-                    for col, val in row_changes.items():
-                        prev_val = display_df.iloc[int(row_idx)][col]
-                        if val != prev_val:
-                            st.session_state.accumulated_changes[row_idx][col] = str(val).upper() if pd.notna(
-                                val) else ""
-
-                calc.apply_accumulated_changes(st.session_state.accumulated_changes)
-
-        # Apply accumulated changes to the calculator
-        if st.session_state.accumulated_changes:
-            calc.apply_accumulated_changes(st.session_state.accumulated_changes)
-
-        # Status bar logic
-        status_message = "Status: upload a CSV file from ATS"
-        status_color = "gray"
-
-        if not calc.df_subjects.empty:
-            # Check if any recent grade is "R"
-            has_r = False
-            for _, row in calc.df_subjects.iterrows():
-                for i in reversed(range(1, 6)):
-                    grade = str(row.get(f"Attempt{i}", "")).strip().upper()
-                    if grade == "R":
-                        has_r = True
-                        break
-                if has_r:
-                    break
-
-            if has_r:
-                status_message = (
-                    "Status: The student is currently registered in subjects. "
-                    "Either put the anticipated grade or remove them. The GPA currently is incorrect."
-                )
-                status_color = "orange"
-            else:
-                status_message = "Status: All is working .. I hope."
-                status_color = "green"
-
-        # Show status bar with colored background
-        st.markdown(
-            f"""
-            <div style="padding:10px; background-color:{status_color}; color:white; border-radius:5px;">
-                {status_message}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.markdown("""
-            <style>
-            .element-container:has(span:contains("R")) span {
-                color: red !important;
-                font-weight: bold;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-
-        # Get current display data (includes accumulated changes)
-        display_df = calc.get_current_display_data()
-
-        # Use st.data_editor with the current display data
-        st.markdown("""
-            <style>
-            /* Make data editor table have vertical and horizontal borders */
-            .stDataFrame, .stDataEditor table {
-            border-collapse: collapse !important;
-            }
-            .stDataEditor table td, 
-            .stDataEditor table th {
-            border: 1px solid #555 !important;
-            padding: 8px !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-
-        edited_df = st.data_editor(
-            display_df,
-            key="grade_editor",
-            disabled=['COURSE_CODE', 'COURSE_NAME', 'CRD_HRS', 'REGISTRATION_STATUS'],
-            use_container_width=True,
-            hide_index=True,
-            height=len(display_df) * 35 + 60,  # Dynamically scale based on number of rows
-        )
-
-        # Display current metrics
-        col1, col2, col3 = st.columns([1, 1, 2])
-        with col1:
-            st.metric("Current GPA", f"{calc.final_gpa:.4f}")
-        with col2:
-            st.metric("Total Courses", len(calc.df_subjects))
-
-        # Show accumulated changes count
-        if st.session_state.accumulated_changes:
-            total_changes = sum(len(changes) for changes in st.session_state.accumulated_changes.values())
-            st.info(f"📝 {total_changes} changes accumulated and applied")
-
-        # Status summary
-        st.subheader("Registration Status Summary")
-        status_counts = calc.df_subjects["REGISTRATION_STATUS"].value_counts()
-        cols = st.columns(len(status_counts))
-        for i, (status, count) in enumerate(status_counts.items()):
-            with cols[i]:
-                st.metric(status, count)
-
-    else:
-        st.write("Load data to see and edit grades.")
-
-# Add a footer with current calculation details
-if calc.student_name:
-    st.markdown("---")
-    st.caption(
-        f"Last updated: GPA={calc.final_gpa:.4f}, Total Effort={calc.total_subject_effort:.2f}, Total Load={calc.total_adjusted_load:.2f}"
+# Load data
+try:
+    df_raw = load_excel(uploaded.read())
+except Exception as e:
+    st.error(
+        "Failed to read the Excel file. If this is an old .xls, ensure `xlrd==1.2.0` is installed "
+        "or re-save the sheet as .xlsx and try again."
     )
+    st.stop()
+
+df = normalize_columns(df_raw)
+
+# Create a search/multi-select over Code and Name (combined label)
+df["Label"] = df["Code"].astype(str).str.strip() + " — " + df["Name"].astype(str).str.strip()
+
+# Optional quick filters
+with st.expander("Filters (optional)"):
+    status_filter = st.multiselect("Status", sorted(df["Status"].dropna().astype(str).unique().tolist()))
+    teacher_filter = st.multiselect("Teacher", sorted(df["Teacher"].dropna().astype(str).unique().tolist()))
+    if status_filter:
+        df = df[df["Status"].astype(str).isin(status_filter)]
+    if teacher_filter:
+        df = df[df["Teacher"].astype(str).isin(teacher_filter)]
+
+# Subject chooser
+choices = st.multiselect(
+    "Search & select subjects/sections",
+    options=df["Label"].tolist(),
+    placeholder="Type code or name…",
+)
+
+if not choices:
+    st.info("Select at least one subject to view its details and schedule.")
+    st.stop()
+
+sel = df[df["Label"].isin(choices)].copy()
+
+# Parse timeslots for each chosen row
+sel["TimeSlots"] = sel["Time"].apply(parse_timeslots)
+
+# Warning if something couldn't be parsed
+bad = sel[sel["TimeSlots"].apply(len) == 0]
+if not bad.empty:
+    with st.warning("Some selected items have no recognizable time/day in Column H. They won't appear on the timetable."):
+        st.dataframe(bad[["Code", "Name", "Time"]], use_container_width=True)
+
+# Show details table
+st.subheader("Selected Subjects")
+st.dataframe(
+    sel[["Code", "Name", "Teacher", "Students", "Status", "Time"]],
+    use_container_width=True
+)
+
+# Build plotting rows
+valid = sel[sel["TimeSlots"].apply(len) > 0]
+if valid.empty:
+    st.stop()
+
+# Color per Code
+codes = valid["Code"].astype(str).tolist()
+palette = make_palette(len(codes))
+code_to_color = {c: palette[i] for i, c in enumerate(codes)}
+
+plot_rows = []
+for _, r in valid.iterrows():
+    plot_rows.append({
+        "Code": r["Code"],
+        "Name": r["Name"],
+        "Teacher": r["Teacher"],
+        "Students": r["Students"],
+        "Status": r["Status"],
+        "TimeSlots": r["TimeSlots"],
+        "Color": code_to_color[str(r["Code"])]
+    })
+
+# Compute reasonable time bounds from data (with padding)
+all_starts = []
+all_ends = []
+for pr in plot_rows:
+    for s in pr["TimeSlots"]:
+        all_starts.append(s["start"])
+        all_ends.append(s["end"])
+
+def min_time(ts: List[time]) -> time:
+    m = min(ts)
+    # pad to earlier hour
+    return time(hour=max(0, m.hour - 1), minute=0)
+
+def max_time(ts: List[time]) -> time:
+    m = max(ts)
+    # pad to next hour
+    return time(hour=min(23, m.hour + 1), minute=0)
+
+tmin = min_time(all_starts) if all_starts else time(8, 0)
+tmax = max_time(all_ends) if all_ends else time(21, 0)
+
+st.subheader("Weekly Timetable")
+timetable_plot(plot_rows, tmin, tmax)
+
+st.caption("Tip: If your Column H format differs (e.g., multiple lines or semicolons), this app tries to parse them. Supported day abbreviations: Sun, Mon, Tue, Wed, Thu, Fri, Sat.")
